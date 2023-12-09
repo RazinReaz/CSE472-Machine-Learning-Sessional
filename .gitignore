@@ -1,0 +1,7 @@
+**/submissions/
+**/submission/
+**/playground/
+**/datasets/
+**/__pycache__/
+*.zip
+*.gz
