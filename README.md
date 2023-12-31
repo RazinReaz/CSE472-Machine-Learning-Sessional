@@ -28,9 +28,13 @@ We reconstructed a greyscale image from its low rank approximation using SVD. Th
     * if test data does not hold a categorical value that is present in the training data, one hot encoding will fail
       as is the case with {'native-country_Holand-Netherlands'} in the adult dataset
 * Removing outliers and handling imbalanced data 
-* credit card data outliers are the real deal 
+* credit card data outliers are the real deal
+
+
 
 ### useful links:
 [Solvers for library models](https://stackoverflow.com/questions/38640109/logistic-regression-python-solvers-definitions/52388406#52388406)
 [Numeric feature scaling](https://scikit-learn.org/stable/modules/preprocessing.html)
+
 ## Assignment 3:
+### What I had to learn

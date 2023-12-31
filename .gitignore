@@ -5,3 +5,5 @@
 **/__pycache__/
 *.zip
 *.gz
+
+offline-3-fnn/data
