@@ -23,6 +23,7 @@ from functools import partial
 # 3. implement batch normalization
 # 5. implement batch stuff
 # 7. layer class has activation inside it?? to use layer-stack
+# 8. modify score function
 
 def softmax(x):
     """
@@ -59,35 +60,35 @@ def one_hot(y, classes = None):
     y_one_hot[np.arange(y.size), y] = 1
     return y_one_hot.T
 
-def xavier_init(input_size, output_size, stdev):
-    np.random.seed(0)
-    return np.random.normal(loc=0, scale=stdev, size=(output_size, input_size))
 
 class Initializer():
-    def __init__(self, stddev_calculation_function):
+    def __init__(self, stddev_calculation_function, name):
         self.stdev_calculation_function = stddev_calculation_function
+        self.name = name
+    def __str__(self) -> str:
+        return "Initializer:" + self.name
     def __call__(self, input_size, output_size):
         np.random.seed(0)
         stdev = self.stdev_calculation_function(input_size, output_size)
         return np.random.normal(loc=0, scale=stdev, size=(output_size, input_size))
     
 class Xavier(Initializer):
-    def xavier(input_size, output_size):
+    def xavier(self, input_size, output_size):
         return np.sqrt(2 / (input_size + output_size))
     def __init__(self):
-        super().__init__(self.xavier)
+        super().__init__(self.xavier, "Xavier")
 
 class He(Initializer):
-    def he(input_size, output_size):
+    def he(self, input_size, output_size):
         return np.sqrt(2 / input_size)
     def __init__(self):
-        super().__init__(self.he)
+        super().__init__(self.he, "He")
 
 class LeCun(Initializer):
-    def lecun(input_size, output_size):
+    def lecun(self, input_size, output_size):
         return 1 / np.sqrt(input_size)
     def __init__(self):
-        super().__init__(self.lecun)
+        super().__init__(self.lecun, "LeCun")
         
 
 class Dense_layer():
@@ -109,6 +110,9 @@ class Dense_layer():
         self.output = np.dot(self.weights, input) + self.bias
         return self.output
     
+    def __str__(self) -> str:
+        return "Dense Layer: (" +str(self.input_size) + "," + str(self.output_size) + ")\n" + str(self.initializer) 
+    
     def backward(self, delta_output, learning_rate):
         """
         delta_output: (output_size, batch_size)
@@ -129,9 +133,12 @@ class Dense_layer():
 
 
 class Activation():
-    def __init__(self, activation = None, derivative = None):
+    def __init__(self, activation, derivative, name):
         self.activation = activation
         self.derivative = derivative
+        self.name = name
+    def __str__(self) -> str:
+        return "Activation: "+ self.name
     def __call__(self, input):
         assert len(input.shape) == 2
         self.input = input
@@ -142,27 +149,31 @@ class Activation():
 
 class Softmax(Activation):
     def __init__(self):
-        super().__init__(activation=softmax, derivative=softmax_prime)
+        super().__init__(activation=softmax, derivative=softmax_prime, name="Softmax")
 
 class ReLU(Activation):
     def __init__(self):
-        super().__init__(activation=relu, derivative=relu_prime)
+        super().__init__(activation=relu, derivative=relu_prime, name="ReLU")
         
 class Tanh(Activation):
     def __init__(self):
-        super().__init__(activation=tanh, derivative=tanh_prime)
+        super().__init__(activation=tanh, derivative=tanh_prime, name="Tanh")
 
 class Sigmoid(Activation):
     def __init__(self):
-        super().__init__(activation=sigmoid, derivative=sigmoid_prime)
+        super().__init__(activation=sigmoid, derivative=sigmoid_prime, name="Sigmoid")
 
 
 class Loss():
     def __call__(self, output, target):
         sample_losses = self.calculate(output, target)
         return np.mean(sample_losses)
+    def __str__(self) -> str:
+        return "Loss: "
 
 class CrossEntropyLoss(Loss):
+    def __str__(self) -> str:
+        return super().__str__() + "Cross Entropy Loss"
     def calculate(self, output, target):
         """
         output: (classes, batch_size)
@@ -177,11 +188,7 @@ class CrossEntropyLoss(Loss):
         return loss
 
 
-input_size = 784        # 28 * 28
-hidden_size = 100
-output_size = 26        # 26 letters
-learning_rate = 0.001
-batch_size = 50
+
 
 class FNN():
     def __init__(self, input_size, output_size, learning_rate=0.001, batch_size=50, epochs=100, loss = CrossEntropyLoss()):
@@ -227,6 +234,7 @@ class FNN():
         elif input.shape[1] == self.input_size:
             # transforming the features as columns
             input = input.T
+
         assert input.shape[0] == self.input_size
 
         next = input
@@ -292,7 +300,25 @@ class FNN():
     def score(self, X, y):
         output = self.predict(X)
         accuracy = self.accuracy(output, y)
-        print("accuracy", accuracy*100, "%")
+        loss = self.loss(self.output, y)
+        return accuracy, loss
+    
+    def macro_f1(self, X, y):
+        output = self.predict(X)
+        y = one_hot(y, classes=self.output_size)
+        tp = np.sum(output * y, axis=1)
+        fp = np.sum(output * (1 - y), axis=1)
+        fn = np.sum((1 - output) * y, axis=1)
+        precision = tp / (tp + fp)
+        recall = tp / (tp + fn)
+        f1 = 2 * precision * recall / (precision + recall)
+        return np.mean(f1)
+    
+    def describe(self):
+        for layer in self.children:
+            print(layer)
+            print()
+        print(self.loss)
         
 def show_image(image, label):
     plt.title('Label is {label}'.format(label=label))
@@ -312,12 +338,42 @@ if __name__ == "__main__":
     # image is a tensor of shape (1, 28, 28) we can convert it to a numpy array of shape (28, 28) by calling .numpy()
 
     X_train = np.array([sample[0].numpy().flatten() for sample in train_dataset])
-    y_train = np.array([sample[1] for sample in train_dataset])
+    y_train = np.array([sample[1] for sample in train_dataset]) - 1
     X_validation = np.array([sample[0].numpy().flatten() for sample in validation_dataset])
-    y_validation = np.array([sample[1] for sample in validation_dataset])
+    y_validation = np.array([sample[1] for sample in validation_dataset]) -1
 
-    sample = 19
-    show_image(X_train[sample], y_train[sample])
+
+    # sample = 19
+    # show_image(X_train[sample], y_train[sample])
+
+    input_size = 784        # 28 * 28
+    output_size = 26        # 26 letters
+    learning_rate = 0.001
+    batch_size = 100
+    epochs = 200
+    
+    model = FNN(input_size, output_size, learning_rate, batch_size, epochs)
+    model.sequential(Dense_layer(input_size, 1024, initializer=He()),
+                    ReLU(),
+                    Dense_layer(1024, output_size, initializer=Xavier()),
+                    Softmax())
+    print("model built\n")
+    model.describe()
+    model.train(X_train, y_train)
+    print("model trained")
+    with open(filepath, 'wb') as f:
+        pickle.dump(model, f)
+    print("model saved in ", filepath)
+    
+    training_accuracy, training_loss = model.score(X_train, y_train)
+    validation_accuracy, validation_loss = model.score(X_validation, y_validation)
+    validation_macro_f1 = model.macro_f1(X_validation, y_validation)
+
+    print("training accuracy:\t", training_accuracy*100, "%")
+    print("training loss:\t", training_loss)
+    print("validation accuracy:\t", validation_accuracy*100, "%")
+    print("validation loss:\t", validation_loss)
+    print("validation macro f1:\t", validation_macro_f1)
 
  
 
