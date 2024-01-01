@@ -315,9 +315,12 @@ class FNN():
         return np.mean(f1)
     
     def describe(self):
+        print("learning rate:", self.learning_rate)
+        print("batch size:", self.batch_size)
+        print("epochs:", self.epochs)
+        print()
         for layer in self.children:
             print(layer)
-            print()
         print(self.loss)
         
 def show_image(image, label):
@@ -330,7 +333,7 @@ if __name__ == "__main__":
     train_validation_dataset = ds.EMNIST(root='./offline-3-fnn/data', split='letters',
                               train=True,
                               transform=transforms.ToTensor(),
-                              download = False)
+                              download = True)
 
     train_dataset, validation_dataset = train_test_split(train_validation_dataset, test_size=0.15, random_state=42)
 

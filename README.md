@@ -38,3 +38,6 @@ We reconstructed a greyscale image from its low rank approximation using SVD. Th
 
 ## Assignment 3:
 ### What I had to learn
+* backpropagation from scratch
+* importance of learning how to tune hyperparameters
+* __call__, __str__ and 
