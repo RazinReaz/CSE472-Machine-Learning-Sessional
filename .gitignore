@@ -7,3 +7,4 @@
 *.gz
 
 offline-3-fnn/data
+offline-3-fnn/trained-models

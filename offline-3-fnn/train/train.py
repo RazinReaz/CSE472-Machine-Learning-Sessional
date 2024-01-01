@@ -1,9 +1,11 @@
 import torchvision.datasets as ds
 from torchvision import transforms
 from sklearn.datasets import load_digits
+from sklearn.model_selection import train_test_split
 import numpy as np
 import matplotlib.pyplot as plt
-import math
+import pickle
+from functools import partial
 
 
 
@@ -15,12 +17,11 @@ import math
 
 
 # TODO
-# 1. do 1 hidden layer first with 100 
 # 2. implement dropout
+# 4. implement momentum
+# 6. He initialization
 # 3. implement batch normalization
-# 4. pickle the model
 # 5. implement batch stuff
-# 6. loss interface
 # 7. layer class has activation inside it?? to use layer-stack
 
 def softmax(x):
@@ -32,8 +33,24 @@ def softmax(x):
     probabilities = x / np.sum(x, axis=0, keepdims=True)
     return probabilities
 
+def softmax_prime(x):   #! this is concerning as it is not the derivative of softmax
+    return softmax(x) * (1 - softmax(x))
+
 def relu(x):
     return np.maximum(x, 0)
+def relu_prime(x):
+    return np.where(x > 0, 1, np.where(x < 0, 0, 0.5))
+
+def tanh(x):
+    return np.tanh(x)
+def tanh_prime(x):
+    return 1 - np.tanh(x)**2
+
+def sigmoid(x):
+    return 1 / (1 + np.exp(-x))
+def sigmoid_prime(x):
+    return sigmoid(x) * (1 - sigmoid(x))
+
 
 def one_hot(y, classes = None):
     if classes is None:
@@ -42,17 +59,45 @@ def one_hot(y, classes = None):
     y_one_hot[np.arange(y.size), y] = 1
     return y_one_hot.T
 
+def xavier_init(input_size, output_size, stdev):
+    np.random.seed(0)
+    return np.random.normal(loc=0, scale=stdev, size=(output_size, input_size))
 
+class Initializer():
+    def __init__(self, stddev_calculation_function):
+        self.stdev_calculation_function = stddev_calculation_function
+    def __call__(self, input_size, output_size):
+        np.random.seed(0)
+        stdev = self.stdev_calculation_function(input_size, output_size)
+        return np.random.normal(loc=0, scale=stdev, size=(output_size, input_size))
+    
+class Xavier(Initializer):
+    def xavier(input_size, output_size):
+        return np.sqrt(2 / (input_size + output_size))
+    def __init__(self):
+        super().__init__(self.xavier)
 
-class dense_layer():
-    def __init__(self, input_size, output_size):
+class He(Initializer):
+    def he(input_size, output_size):
+        return np.sqrt(2 / input_size)
+    def __init__(self):
+        super().__init__(self.he)
+
+class LeCun(Initializer):
+    def lecun(input_size, output_size):
+        return 1 / np.sqrt(input_size)
+    def __init__(self):
+        super().__init__(self.lecun)
+        
+
+class Dense_layer():
+    def __init__(self, input_size, output_size, initializer = Xavier()):
         self.input_size = input_size
         self.output_size = output_size
-
-        np.random.seed(0)
-        stdev = np.sqrt(2 / (input_size + output_size))
-        self.weights = np.random.normal(loc=0, scale=stdev, size=(output_size, input_size))
-        self.bias = np.random.normal(loc=0, scale=stdev, size=(output_size, 1))
+        self.initializer = initializer
+        self.weights = self.initializer(input_size, output_size)
+        self.bias = self.initializer(1, output_size)
+        
         
     def __call__(self, input):
         """
@@ -64,62 +109,58 @@ class dense_layer():
         self.output = np.dot(self.weights, input) + self.bias
         return self.output
     
-    def backprop(self, delta_output, learning_rate):
+    def backward(self, delta_output, learning_rate):
         """
         delta_output: (output_size, batch_size)
         """
-        # print("\nIN LAYER BACKPROP")
         assert delta_output.shape == self.output.shape
         batch_size = delta_output.shape[1]
         self.delta_weights = np.dot(delta_output, self.input.T) / batch_size
         self.delta_bias = np.sum(delta_output, axis=1, keepdims=True) / batch_size
 
-        # print("delta_weights shape", self.delta_weights.shape)
-        # print("weights shape", self.weights.shape)
-        # print("delta_bias shape", self.delta_bias.shape)
-        # print("bias shape", self.bias.shape)
-
+        weights_copy = self.weights.copy()
         self.weights -= learning_rate * self.delta_weights
         self.bias -= learning_rate * self.delta_bias
+
+        return np.dot(weights_copy.T, delta_output)
 
         
 
 
 
 class Activation():
-    def __call__(self, input):
-        raise NotImplementedError("Subclasses must implement __call__ method.")
-    
-    def derivative(self):
-        raise NotImplementedError("Subclasses must implement derivative method.")
-
-
-class Softmax(Activation):
+    def __init__(self, activation = None, derivative = None):
+        self.activation = activation
+        self.derivative = derivative
     def __call__(self, input):
         assert len(input.shape) == 2
         self.input = input
-        self.output = softmax(input)
-        return self.output
-    def derivative(self):
-        return self.output * (1 - self.output) #! 1{i=j} - self.output?
+        self.output = self.activation(input)
+        return self.output    
+    def backward(self, delta_output, learning_rate):
+        return delta_output * self.derivative(self.input)
 
+class Softmax(Activation):
+    def __init__(self):
+        super().__init__(activation=softmax, derivative=softmax_prime)
 
 class ReLU(Activation):
-    def __call__(self, input):
-        self.input = input
-        self.output = relu(input)
-        return self.output
-    def derivative(self):
-        return np.where(self.input > 0, 1, np.where(self.input < 0, 0, 0.5)) #! will this work?
-    
+    def __init__(self):
+        super().__init__(activation=relu, derivative=relu_prime)
+        
+class Tanh(Activation):
+    def __init__(self):
+        super().__init__(activation=tanh, derivative=tanh_prime)
+
+class Sigmoid(Activation):
+    def __init__(self):
+        super().__init__(activation=sigmoid, derivative=sigmoid_prime)
 
 
 class Loss():
     def __call__(self, output, target):
         sample_losses = self.calculate(output, target)
         return np.mean(sample_losses)
-    def derivative(self, input):
-        raise NotImplementedError("Subclasses must implement derivative method.")
 
 class CrossEntropyLoss(Loss):
     def calculate(self, output, target):
@@ -128,12 +169,12 @@ class CrossEntropyLoss(Loss):
         target: (batch_size, ) or (classes, batch_size)
         """
         if len(target.shape) == 1:
+            # if the target in not one hot encoded
             loss = -np.log(output[[target], np.arange(target.size)])
         elif len(target.shape) == 2:
+            # if the target is one hot encoded
             loss = -np.sum(target * np.log(output), axis=0)
         return loss
-    def derivative(self, input):
-        return 1/input
 
 
 input_size = 784        # 28 * 28
@@ -143,26 +184,43 @@ learning_rate = 0.001
 batch_size = 50
 
 class FNN():
-    def __init__(self, input_size, hidden_size, output_size, learning_rate=0.001, batch_size=3, epochs=100):
+    def __init__(self, input_size, output_size, learning_rate=0.001, batch_size=50, epochs=100, loss = CrossEntropyLoss()):
         self.input_size = input_size
-        self.hidden_size = hidden_size
         self.output_size = output_size
+        
         self.learning_rate = learning_rate
         self.batch_size = batch_size
         self.epochs = epochs
 
-        self.layer1 = dense_layer(input_size, hidden_size)
-        self.activation1 = ReLU()
-        self.layer2 = dense_layer(hidden_size, output_size)
-        self.activation2 = Softmax()
-        self.loss = CrossEntropyLoss()
+        self.children = []
+
+        self.built = False
+
+        self.loss = loss
+    
+    def add_layer(self, layer):
+        if len(self.children) == 0:
+            assert type(layer) != Activation
+            assert layer.input_size == self.input_size
+            self.children.append(layer)
+            return
+        if isinstance(layer, Dense_layer):
+            assert layer.input_size == self.children[-2].output_size
+        elif isinstance(layer, Activation):
+            assert not isinstance(self.children[-1], Activation)
+        self.children.append(layer)
+    
+    def sequential(self, *layers):
+        for layer in layers:
+            self.add_layer(layer)
+        self.built = True
     
     def forward(self, input):
         """
         input: (input_size, batch_size)
         output: (output_size, batch_size)
         """
-        # print("\nIN FORWARD")
+        assert self.built
         if len(input.shape) == 1:
             # if the input is a single sample as a 1d row, reshape it as a column
             input = input.reshape(input.shape[0], 1)
@@ -171,21 +229,16 @@ class FNN():
             input = input.T
         assert input.shape[0] == self.input_size
 
-        z1 = self.layer1(input)
-        a1 = self.activation1(z1)
-        z2 = self.layer2(a1)
-        a2 = self.activation2(z2)
-        self.output = a2
-        # print("z1 shape", z1.shape)
-        # print("a1 shape", a1.shape)
-        # print("z2 shape", z2.shape)
-        # print("a2 shape", a2.shape)
+        next = input
+        for layer in self.children:
+            next = layer(next)
+        self.output = next
         return self.output
     
     def backward(self, target):
         """
         output: (classes, batch_size)
-        target: (batch_size, 1)
+        target: (batch_size, 1) or (batch_size, classes)[one hot encoded] 
         """
         # print("\nIN BACKWARD")
         if len(target.shape) == 1:
@@ -194,25 +247,27 @@ class FNN():
             # if the target is a one hot encoded matrix, transform it to a column
             target = target.T
         assert target.shape == self.output.shape
-        # print("output shape", self.output.shape)
-        # print("target shape", target.shape)
 
         # the final layer has cross entropy with one hot and softmax activation
         # we can do a shortcut and find the derivative of loss w.r.t z instead of a when this is the case
-        self.delta_z2 = self.output - target   # target has to be one hot encoded
-        self.delta_a1 = np.dot(self.layer2.weights.T, self.delta_z2)
-        self.delta_z1 = self.delta_a1 * self.activation1.derivative()
-        self.delta_input = np.dot(self.layer1.weights.T, self.delta_z1)
+        delta = self.output - target   # target has to be one hot encoded
+        for i, layer in enumerate(reversed(self.children)):
+            if i == 0: continue
+            delta = layer.backward(delta, self.learning_rate)
+            # if isinstance(layer, Activation):
+            #     delta = delta * layer.derivative()
+            # elif isinstance(layer, Dense_layer):
+            #     temp_delta = np.dot(layer.weights.T, delta)
+            #     layer.backprop(delta, self.learning_rate)
+            #     delta = temp_delta
 
-        # print("delta_z2", self.delta_z2)
-        # print("delta_a1", self.delta_a1)
-        # print("activation1 derivative", self.activation1.derivative())
-
-        # print("delta_z2 shape", self.delta_z2.shape)
-        # print("delta_z1 shape", self.delta_z1.shape)
+        # self.delta_z2 = self.output - target
+        # self.delta_a1 = np.dot(self.layer2.weights.T, self.delta_z2)
+        # self.delta_z1 = self.delta_a1 * self.activation1.derivative()
+        # self.delta_input = np.dot(self.layer1.weights.T, self.delta_z1)
         
-        self.layer2.backprop(self.delta_z2, self.learning_rate)
-        self.layer1.backprop(self.delta_z1, self.learning_rate)
+        # self.layer2.backprop(self.delta_z2, self.learning_rate)
+        # self.layer1.backprop(self.delta_z1, self.learning_rate)
 
     def train(self, X, y):
         # train by mini batch
@@ -220,39 +275,51 @@ class FNN():
             for i in range(0, X.shape[0], self.batch_size):
                 self.forward(X[i:i+self.batch_size])
                 self.backward(y[i:i+self.batch_size])
-                break
-            if epoch + 1 % 10 == 0:
+            if (epoch + 1) % 10 == 0:
                 print("Epoch", epoch + 1, " : Loss", self.loss(self.output, y[i:i+self.batch_size]))
 
     def predict(self, X):
-        return self.forward(X)
+        return np.argmax(self.forward(X), axis=0)
             
 
-    def accuracy(self, output, target):
+    def accuracy(self, predictions, target):
         """
         output: (classes, batch_size)
         target: (batch_size, )
         """
-        # print("\nIN ACCURACY")
-
-        predictions = np.argmax(output, axis=0)
         return np.mean(predictions == target)
 
-
+    def score(self, X, y):
+        output = self.predict(X)
+        accuracy = self.accuracy(output, y)
+        print("accuracy", accuracy*100, "%")
+        
+def show_image(image, label):
+    plt.title('Label is {label}'.format(label=label))
+    plt.imshow(image.reshape(28,28).T, cmap='gray')
+    plt.show()
 
 if __name__ == "__main__":
-    # 
-    X, y = load_digits(return_X_y=True)
+    filepath = 'offline-3-fnn/trained-models/letter-model.pkl'
+    train_validation_dataset = ds.EMNIST(root='./offline-3-fnn/data', split='letters',
+                              train=True,
+                              transform=transforms.ToTensor(),
+                              download = False)
+
+    train_dataset, validation_dataset = train_test_split(train_validation_dataset, test_size=0.15, random_state=42)
+
+    # dataset[i] returns a tuple of (image, label)
+    # image is a tensor of shape (1, 28, 28) we can convert it to a numpy array of shape (28, 28) by calling .numpy()
+
+    X_train = np.array([sample[0].numpy().flatten() for sample in train_dataset])
+    y_train = np.array([sample[1] for sample in train_dataset])
+    X_validation = np.array([sample[0].numpy().flatten() for sample in validation_dataset])
+    y_validation = np.array([sample[1] for sample in validation_dataset])
+
+    sample = 19
+    show_image(X_train[sample], y_train[sample])
+
+ 
+
     
-    model = FNN(64, 24, 10, epochs=1000, batch_size=100, learning_rate=0.01)
-    model.train(X, y)
-
-    output = model.predict(X)
-    accuracy = model.accuracy(output, y)
-    print("accuracy", accuracy*100, "%")
-
-    # for sample in range(10, 20):
-    #     predictions = model.predict(X[sample])
-    #     prediction = np.argmax(predictions, axis=0)[0]
-    #     print("prediction", prediction, "  y[", sample ,"]", y[sample])
         
