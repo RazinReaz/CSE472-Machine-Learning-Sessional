@@ -3,11 +3,15 @@
 **/playground/
 **/datasets/
 **/tempCodeRunnerFile.py
+**/playground.py
 **/__pycache__/
 *.zip
 *.gz
 
 
+
 offline-3-fnn/data
 offline-3-fnn/trained-models
 offline-3-fnn/results
+offline-3-fnn/report
+offline-3-fnn/playground.py

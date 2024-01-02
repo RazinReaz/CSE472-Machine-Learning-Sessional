@@ -4,26 +4,10 @@ from sklearn.datasets import load_digits
 from sklearn.model_selection import train_test_split
 import numpy as np
 import matplotlib.pyplot as plt
+import seaborn as sns
 import pickle
-from functools import partial
 
 
-
-# train_validation_dataset = ds.EMNIST(root='./offline-3-fnn/data', split='letters',
-#                               train=True,
-#                               transform=transforms.ToTensor(),
-#                               download = True)
-
-
-
-# TODO
-# 2. implement dropout
-# 4. implement momentum
-# 6. He initialization
-# 3. implement batch normalization
-# 5. implement batch stuff
-# 7. layer class has activation inside it?? to use layer-stack
-# 8. modify score function
 
 def softmax(x):
     """
@@ -34,7 +18,7 @@ def softmax(x):
     probabilities = x / np.sum(x, axis=0, keepdims=True)
     return probabilities
 
-def softmax_prime(x):   #! this is concerning as it is not the derivative of softmax
+def softmax_prime(x):   #! this is concerning as it assumes  that i==j
     return softmax(x) * (1 - softmax(x))
 
 def relu(x):
@@ -59,6 +43,14 @@ def one_hot(y, classes = None):
     y_one_hot = np.zeros((y.size, classes))
     y_one_hot[np.arange(y.size), y] = 1
     return y_one_hot.T
+
+def confusion_heatmap(confusion_matrix, labels, title):
+    plt.figure(figsize=(8, 6))
+    sns.heatmap(confusion_matrix, cmap='viridis', fmt='d', xticklabels=labels, yticklabels=labels)
+    plt.ylabel('Predicted')
+    plt.xlabel('Actual')
+    plt.title(title)
+    plt.show()
 
 
 class Initializer():
@@ -98,6 +90,8 @@ class Dense_layer():
         self.initializer = initializer
         self.weights = self.initializer(input_size, output_size)
         self.bias = self.initializer(1, output_size)
+        self.weight_optimizer = Adam(input_size, output_size)
+        self.bias_optimizer = Adam(1, output_size)
         
         
     def __call__(self, input):
@@ -123,11 +117,32 @@ class Dense_layer():
         self.delta_bias = np.sum(delta_output, axis=1, keepdims=True) / batch_size
 
         weights_copy = self.weights.copy()
-        self.weights -= learning_rate * self.delta_weights
-        self.bias -= learning_rate * self.delta_bias
+        self.weights = self.weight_optimizer.update(self.weights, self.delta_weights, learning_rate)
+        self.bias = self.bias_optimizer.update(self.bias, self.delta_bias, learning_rate)
+        # self.weights -= learning_rate * self.delta_weights
+        # self.bias -= learning_rate * self.delta_bias
 
         return np.dot(weights_copy.T, delta_output)
 
+
+class Adam():
+    def __init__(self, input_size, output_size, beta1=0.9, beta2=0.999, epsilon=1e-8):
+        self.beta1 = beta1
+        self.beta2 = beta2
+        self.epsilon = epsilon
+        self.m = np.zeros((output_size, input_size))
+        self.v = np.zeros((output_size, input_size))
+        self.t = 1
+    def __str__(self) -> str:
+        return "Adam: " + str(self.beta1) + " " + str(self.beta2) + " " + str(self.epsilon)
+    def update(self, weights, delta_weights, learning_rate):
+        self.m = self.beta1 * self.m + (1 - self.beta1) * delta_weights
+        self.v = self.beta2 * self.v + (1 - self.beta2) * delta_weights**2
+        m_hat = self.m / (1 - self.beta1**self.t)
+        v_hat = self.v / (1 - self.beta2**self.t)
+        weights -= learning_rate * m_hat / (np.sqrt(v_hat) + self.epsilon)
+        self.t += 1
+        return weights
         
 
 
@@ -137,6 +152,9 @@ class Activation():
         self.activation = activation
         self.derivative = derivative
         self.name = name
+    def set_size(self, size):
+        self.input_size = size
+        self.output_size = size
     def __str__(self) -> str:
         return "Activation: "+ self.name
     def __call__(self, input):
@@ -162,6 +180,22 @@ class Tanh(Activation):
 class Sigmoid(Activation):
     def __init__(self):
         super().__init__(activation=sigmoid, derivative=sigmoid_prime, name="Sigmoid")
+
+class Dropout():
+    def __init__(self, keep_prob):
+        self.keep_prob = keep_prob
+    def set_size(self, size):
+        self.input_size = size
+        self.output_size = size
+    def __str__(self) -> str:
+        return "Dropout: " + str(self.keep_prob)
+    def __call__(self, input):
+        self.input = input
+        self.mask = np.random.binomial(1, self.keep_prob, size=input.shape)
+        self.output = (input * self.mask) / self.keep_prob
+        return self.output
+    def backward(self, delta_output, learning_rate):
+        return (delta_output * self.mask) / self.keep_prob
 
 
 class Loss():
@@ -207,14 +241,18 @@ class FNN():
     
     def add_layer(self, layer):
         if len(self.children) == 0:
-            assert type(layer) != Activation
+            assert isinstance(layer, Dense_layer)
             assert layer.input_size == self.input_size
             self.children.append(layer)
             return
         if isinstance(layer, Dense_layer):
-            assert layer.input_size == self.children[-2].output_size
+            assert layer.input_size == self.children[-1].output_size
         elif isinstance(layer, Activation):
-            assert not isinstance(self.children[-1], Activation)
+            assert isinstance(self.children[-1], Dense_layer)
+            layer.set_size(self.children[-1].output_size)
+        elif isinstance(layer, Dropout):
+            assert isinstance(self.children[-1], Activation)
+            layer.set_size(self.children[-1].output_size)
         self.children.append(layer)
     
     def sequential(self, *layers):
@@ -222,7 +260,7 @@ class FNN():
             self.add_layer(layer)
         self.built = True
     
-    def forward(self, input):
+    def forward(self, input, training=True):
         """
         input: (input_size, batch_size)
         output: (output_size, batch_size)
@@ -239,6 +277,8 @@ class FNN():
 
         next = input
         for layer in self.children:
+            if isinstance(layer, Dropout) and not training:
+                continue
             next = layer(next)
         self.output = next
         return self.output
@@ -262,20 +302,6 @@ class FNN():
         for i, layer in enumerate(reversed(self.children)):
             if i == 0: continue
             delta = layer.backward(delta, self.learning_rate)
-            # if isinstance(layer, Activation):
-            #     delta = delta * layer.derivative()
-            # elif isinstance(layer, Dense_layer):
-            #     temp_delta = np.dot(layer.weights.T, delta)
-            #     layer.backprop(delta, self.learning_rate)
-            #     delta = temp_delta
-
-        # self.delta_z2 = self.output - target
-        # self.delta_a1 = np.dot(self.layer2.weights.T, self.delta_z2)
-        # self.delta_z1 = self.delta_a1 * self.activation1.derivative()
-        # self.delta_input = np.dot(self.layer1.weights.T, self.delta_z1)
-        
-        # self.layer2.backprop(self.delta_z2, self.learning_rate)
-        # self.layer1.backprop(self.delta_z1, self.learning_rate)
 
     def train(self, X, y):
         # train by mini batch
@@ -301,7 +327,14 @@ class FNN():
         output = self.predict(X)
         accuracy = self.accuracy(output, y)
         loss = self.loss(self.output, y)
-        return accuracy, loss
+        print("output shape:", output.shape)
+        print("y shape:", y.shape)
+        # confusion matrix
+        confusion = np.zeros((self.output_size, self.output_size))
+        for i in range(len(y)):
+            confusion[output[i], y[i]] += 1
+        confusion = confusion.astype(int)
+        return accuracy, loss, confusion
     
     def macro_f1(self, X, y):
         output = self.predict(X)
@@ -314,6 +347,10 @@ class FNN():
         f1 = 2 * precision * recall / (precision + recall)
         return np.mean(f1)
     
+    def save(self, filepath):
+        with open(filepath, 'wb') as f:
+            pickle.dump(self, f)
+        
     def describe(self):
         print("learning rate:", self.learning_rate)
         print("batch size:", self.batch_size)
@@ -322,61 +359,81 @@ class FNN():
         for layer in self.children:
             print(layer)
         print(self.loss)
+        print()
         
 def show_image(image, label):
     plt.title('Label is {label}'.format(label=label))
     plt.imshow(image.reshape(28,28).T, cmap='gray')
     plt.show()
 
+def save_graph(filepath, model, X, y):
+    training_accuracy, training_loss, training_confusion = model.score(X, y)
+    validation_accuracy, validation_loss, validation_confusion = model.score(X, y)
+    validation_macro_f1 = model.macro_f1(X, y)
+
+    
+
 if __name__ == "__main__":
     filepath = 'offline-3-fnn/trained-models/letter-model.pkl'
+    modelpath = 'offline-3-fnn/trained-models/letter-model-3.pkl'
     train_validation_dataset = ds.EMNIST(root='./offline-3-fnn/data', split='letters',
                               train=True,
                               transform=transforms.ToTensor(),
                               download = True)
-
+    print("dataset loaded")
     train_dataset, validation_dataset = train_test_split(train_validation_dataset, test_size=0.15, random_state=42)
-
-    # dataset[i] returns a tuple of (image, label)
-    # image is a tensor of shape (1, 28, 28) we can convert it to a numpy array of shape (28, 28) by calling .numpy()
-
+    print("dataset split")
     X_train = np.array([sample[0].numpy().flatten() for sample in train_dataset])
     y_train = np.array([sample[1] for sample in train_dataset]) - 1
     X_validation = np.array([sample[0].numpy().flatten() for sample in validation_dataset])
     y_validation = np.array([sample[1] for sample in validation_dataset]) -1
-
-
-    # sample = 19
-    # show_image(X_train[sample], y_train[sample])
-
+    print("dataset converted to numpy arrays")
     input_size = 784        # 28 * 28
     output_size = 26        # 26 letters
-    learning_rate = 0.001
-    batch_size = 100
+
+    # X, y = load_digits(return_X_y=True)
+    # X = X / X.max()
+    # X_train, X_validation, y_train, y_validation = train_test_split(X, y, test_size=0.15, random_state=42)
+    # input_size = 64
+    # output_size = 10
+
+    learning_rate = 5e-4
+    batch_size = 1000
     epochs = 200
     
-    model = FNN(input_size, output_size, learning_rate, batch_size, epochs)
-    model.sequential(Dense_layer(input_size, 1024, initializer=He()),
-                    ReLU(),
-                    Dense_layer(1024, output_size, initializer=Xavier()),
-                    Softmax())
-    print("model built\n")
-    model.describe()
-    model.train(X_train, y_train)
-    print("model trained")
-    with open(filepath, 'wb') as f:
-        pickle.dump(model, f)
-    print("model saved in ", filepath)
+    # model = FNN(input_size, output_size, learning_rate, batch_size, epochs)
+    # model.sequential(Dense_layer(input_size, 256, initializer=He()),
+    #                 ReLU(),
+    #                 Dropout(0.7),
+    #                 Dense_layer(256, output_size, initializer=Xavier()),
+    #                 Softmax())
     
-    training_accuracy, training_loss = model.score(X_train, y_train)
-    validation_accuracy, validation_loss = model.score(X_validation, y_validation)
+    # print("model built\n")
+    # model.describe()
+    # model.train(X_train, y_train)
+    # print("model trained")
+    # model.save(filepath)
+    # print("model saved in ", filepath)
+
+    # load from file
+    with open(modelpath, 'rb') as f:
+        model = pickle.load(f)
+    print("model loaded from ", modelpath)
+    model.describe()
+    
+    training_accuracy, training_loss, training_confusion = model.score(X_train, y_train)
+    validation_accuracy, validation_loss, validation_confusion = model.score(X_validation, y_validation)
     validation_macro_f1 = model.macro_f1(X_validation, y_validation)
 
     print("training accuracy:\t", training_accuracy*100, "%")
-    print("training loss:\t", training_loss)
     print("validation accuracy:\t", validation_accuracy*100, "%")
+    print("training loss:\t\t", training_loss)
     print("validation loss:\t", validation_loss)
     print("validation macro f1:\t", validation_macro_f1)
+
+    characters = [chr(i+97) for i in range(26)]
+    confusion_heatmap(training_confusion, labels=characters, title="Training Confusion Matrix")
+    confusion_heatmap(validation_confusion, labels=characters, title="Validation Confusion Matrix")
 
  
 
