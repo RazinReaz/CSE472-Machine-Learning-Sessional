@@ -5,7 +5,7 @@ import pickle
 from tqdm import tqdm
 
 import classes.Loss as Loss
-from classes.Layer import Dense_layer, Dropout, Activation
+from classes.Layer import *
 from classes.utils import one_hot
 
 
@@ -144,24 +144,9 @@ class FNN():
             recall[i] = confusion[i, i] / np.sum(confusion[:, i])
         f1 = 2 * precision * recall / (precision + recall)
         return np.mean(f1)
-    
-    def save(self, filepath):
-        # # dump only the weights and biases
-        # weights = []
-        # biases = []
-        # input_sizes = []
-        # output_sizes = []
-        # for layer in self.children:
-        #     if isinstance(layer, Dense_layer):
-        #         weights.append(layer.weights)
-        #         biases.append(layer.bias)
-        #         input_sizes.append(layer.input_size)
-        #         output_sizes.append(layer.output_size)
-        # with open(filepath, 'wb') as f:
-        #     pickle.dump((weights, biases, input_sizes, output_sizes), f)
-        with open(filepath, 'wb') as f:
-            pickle.dump(self, f)
-        
+
+
+
     def describe(self):
         print("learning rate:", self.learning_rate)
         print("batch size:", self.batch_size)
@@ -188,3 +173,44 @@ class FNN():
         plt.ylabel("Accuracy")
         plt.legend()
         plt.savefig('offline-3-fnn/report/images/'+model_number+'/accuracy.png')
+
+
+def create_model(filepath):
+    layer_infos = pickle.load(filepath)
+    model = FNN(layer_infos[0]['input_size'], layer_infos[-1]['output_size'])
+    for layer_info in layer_infos:
+        if layer_info['name'] == 'Dense':
+            model.add_layer(Dense_layer(layer_info['input_size'], layer_info['output_size']))
+            model.children[-1].weights = layer_info['weights']
+            model.children[-1].bias = layer_info['bias']
+        if layer_info['name'] == 'ReLU':
+            model.add_layer(ReLU())
+        if layer_info['name'] == 'Sigmoid':
+            model.add_layer(Sigmoid())
+        if layer_info['name'] == 'Tanh':
+            model.add_layer(Tanh())
+        if layer_info['name'] == 'Dropout':
+            model.add_layer(Dropout(layer_info['keep_prob']))
+        if layer_info['name'] == 'Softmax':
+            model.add_layer(Softmax())
+    model.built = True
+    return model
+
+def export_model(model, filepath):
+    # dump only the weights and biases
+    assert model.built
+    layers = []
+    for layer in model.children:
+        layer_info = {}
+        layer_info['name'] = layer.name
+        layer_info['input_size'] = layer.input_size
+        layer_info['output_size'] = layer.output_size
+        if isinstance(layer, Dense_layer):
+            # create a dictionary
+            layer_info['weights'] = layer.weights
+            layer_info['bias'] = layer.bias
+        if isinstance(layer, Dropout):
+            layer_info['keep_prob'] = layer.keep_prob
+        layers.append(layer_info)
+    with open(filepath, 'wb') as f:
+        pickle.dump(layers, f)

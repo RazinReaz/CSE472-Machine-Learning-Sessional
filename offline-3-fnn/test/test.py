@@ -30,19 +30,12 @@ if __name__ == "__main__":
     y_test = np.array([sample[1] for sample in independent_test_set]) - 1
     
     print("test dataset converted to numpy arrays")
-
-
-    input_size = 784        # 28 * 28
-    output_size = 26        # 26 letters
-    learning_rate = 5e-4
-    batch_size = 1024
-    epochs = 10
     
     model_number = 1
     modelpath = 'offline-3-fnn/trained-models/letter-model-'+ str(model_number)+'.pkl'
     
     with open(modelpath, 'rb') as f:
-        model = utils.create_model(f)
+        model = network.create_model(f)
     print("model loaded from", modelpath)
     model.describe()
 
@@ -51,7 +44,6 @@ if __name__ == "__main__":
     print("test accuracy:\t\t", test_accuracy*100, "%")
     print("test loss:\t\t", test_loss)
     print("test macro f1:\t\t", test_macro_f1)
-
 
     characters = [chr(i+97) for i in range(26)]
     utils.confusion_heatmap(test_confusion, labels=characters, title="Test Confusion Matrix", model_number=str(model_number), save=False)

@@ -12,7 +12,7 @@ class Dense_layer():
         self.bias = self.initializer(1, output_size)
         self.weight_optimizer = Optimizer.Adam(input_size, output_size)
         self.bias_optimizer = Optimizer.Adam(1, output_size)
-        
+        self.name = "Dense"
         
     def __call__(self, input):
         """
@@ -47,6 +47,7 @@ class Dense_layer():
 class Dropout():
     def __init__(self, keep_prob):
         self.keep_prob = keep_prob
+        self.name = "Dropout"
     def set_size(self, size):
         self.input_size = size
         self.output_size = size
@@ -69,7 +70,7 @@ def softmax(x):
     probabilities = x / np.sum(x, axis=0, keepdims=True)
     return probabilities
 
-def softmax_prime(x):   #! this is concerning as it assumes  that i==j
+def softmax_prime(x):
     return softmax(x) * (1 - softmax(x))
 
 def relu(x):

@@ -46,20 +46,17 @@ if __name__ == "__main__":
     modelpath = 'offline-3-fnn/trained-models/letter-model-'+ str(model_number)+'.pkl'
     
     model = network.FNN(input_size, output_size, learning_rate, batch_size, epochs)
-    model.sequential(Layer.Dense_layer(input_size, 100, initializer=Initializer.He()),
-                    Layer.ReLU(),
-                    Layer.Dropout(0.8),
-                    Layer.Dense_layer(100, 52, initializer=Initializer.Xavier()),
+    model.sequential(Layer.Dense_layer(input_size, 100, initializer=Initializer.LeCun()),
                     Layer.Tanh(),
-                    Layer.Dropout(0.95),
-                    Layer.Dense_layer(52, output_size, initializer=Initializer.Xavier()),
+                    Layer.Dropout(0.9),
+                    Layer.Dense_layer(100, output_size, initializer=Initializer.Xavier()),
                     Layer.Softmax())
     
     print("model built\n")
     model.describe()
     model.train(X_train, y_train, X_validation, y_validation)
     print("model trained")
-    model.save(filepath)
+    network.export_model(model, filepath)
     print("model weights and biases saved in ", filepath)
 
     model.graphs(model_number=str(model_number))
@@ -74,6 +71,6 @@ if __name__ == "__main__":
     print("validation loss:\t", validation_loss)
     print("validation macro f1:\t", validation_macro_f1)
 
-    characters = [chr(i+97) for i in range(26)]
-    utils.confusion_heatmap(training_confusion, labels=characters, title="Training Confusion Matrix", model_number=str(model_number))
-    utils.confusion_heatmap(validation_confusion, labels=characters, title="Validation Confusion Matrix", model_number=str(model_number))
+    # characters = [chr(i+97) for i in range(26)]
+    # utils.confusion_heatmap(training_confusion, labels=characters, title="Training Confusion Matrix", model_number=str(model_number))
+    # utils.confusion_heatmap(validation_confusion, labels=characters, title="Validation Confusion Matrix", model_number=str(model_number))

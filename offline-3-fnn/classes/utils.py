@@ -3,6 +3,8 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 import pickle
 
+import classes.Layer as Layer
+
 def one_hot(y, classes = None):
     if classes is None:
         classes = np.max(y) + 1
@@ -28,6 +30,3 @@ def confusion_heatmap(confusion_matrix, labels, title, model_number, save=True):
     else:
         plt.show()
 
-def create_model(filepath):
-    model = pickle.load(filepath)
-    return model
