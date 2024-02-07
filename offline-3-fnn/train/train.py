@@ -39,17 +39,23 @@ if __name__ == "__main__":
     output_size = 26        # 26 letters
     learning_rate = 5e-4
     batch_size = 1024
-    epochs = 100
+    epochs = 20
     
-    model_number = 1
+    model_number = 3
     filepath = 'offline-3-fnn/trained-models/letter-model-'+ str(model_number)+'.pkl'
     modelpath = 'offline-3-fnn/trained-models/letter-model-'+ str(model_number)+'.pkl'
     
     model = network.FNN(input_size, output_size, learning_rate, batch_size, epochs)
-    model.sequential(Layer.Dense_layer(input_size, 100, initializer=Initializer.LeCun()),
+    model.sequential(Layer.DenseLayer(input_size, 1024, initializer=Initializer.LeCun()),
                     Layer.Tanh(),
-                    Layer.Dropout(0.9),
-                    Layer.Dense_layer(100, output_size, initializer=Initializer.Xavier()),
+                    Layer.Dropout(0.5),
+                    Layer.DenseLayer(1024, 512, initializer=Initializer.He()),
+                    Layer.ReLU(),
+                    Layer.Dropout(0.7),
+                    Layer.DenseLayer(512, 100, initializer=Initializer.Xavier()),
+                    Layer.Tanh(),
+                    Layer.Dropout(0.95),
+                    Layer.DenseLayer(100, output_size, initializer=Initializer.Xavier()),
                     Layer.Softmax())
     
     print("model built\n")
@@ -58,7 +64,8 @@ if __name__ == "__main__":
     print("model trained")
     network.export_model(model, filepath)
     print("model weights and biases saved in ", filepath)
-
+    with open(modelpath, 'rb') as f:
+        model = network.create_model(f)
     model.graphs(model_number=str(model_number))
     
     training_accuracy, training_loss, training_confusion = model.score(X_train, y_train)

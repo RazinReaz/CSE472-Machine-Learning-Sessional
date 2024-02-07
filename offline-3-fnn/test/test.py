@@ -31,7 +31,7 @@ if __name__ == "__main__":
     
     print("test dataset converted to numpy arrays")
     
-    model_number = 1
+    model_number = 3
     modelpath = 'offline-3-fnn/trained-models/letter-model-'+ str(model_number)+'.pkl'
     
     with open(modelpath, 'rb') as f:

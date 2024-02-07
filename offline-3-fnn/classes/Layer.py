@@ -3,7 +3,7 @@ import numpy as np
 import classes.Initializer as Initializer
 import classes.Optimizer as Optimizer
 
-class Dense_layer():
+class DenseLayer():
     def __init__(self, input_size, output_size, initializer = Initializer.Xavier()):
         self.input_size = input_size
         self.output_size = output_size

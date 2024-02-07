@@ -2,6 +2,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
 import pickle
+import os
 from tqdm import tqdm
 
 import classes.Loss as Loss
@@ -31,14 +32,14 @@ class FNN():
     
     def add_layer(self, layer):
         if len(self.children) == 0:
-            assert isinstance(layer, Dense_layer)
+            assert isinstance(layer, DenseLayer)
             assert layer.input_size == self.input_size
             self.children.append(layer)
             return
-        if isinstance(layer, Dense_layer):
+        if isinstance(layer, DenseLayer):
             assert layer.input_size == self.children[-1].output_size
         elif isinstance(layer, Activation):
-            assert isinstance(self.children[-1], Dense_layer)
+            assert isinstance(self.children[-1], DenseLayer)
             layer.set_size(self.children[-1].output_size)
         elif isinstance(layer, Dropout):
             assert isinstance(self.children[-1], Activation)
@@ -180,7 +181,7 @@ def create_model(filepath):
     model = FNN(layer_infos[0]['input_size'], layer_infos[-1]['output_size'])
     for layer_info in layer_infos:
         if layer_info['name'] == 'Dense':
-            model.add_layer(Dense_layer(layer_info['input_size'], layer_info['output_size']))
+            model.add_layer(DenseLayer(layer_info['input_size'], layer_info['output_size']))
             model.children[-1].weights = layer_info['weights']
             model.children[-1].bias = layer_info['bias']
         if layer_info['name'] == 'ReLU':
@@ -205,12 +206,14 @@ def export_model(model, filepath):
         layer_info['name'] = layer.name
         layer_info['input_size'] = layer.input_size
         layer_info['output_size'] = layer.output_size
-        if isinstance(layer, Dense_layer):
+        if isinstance(layer, DenseLayer):
             # create a dictionary
             layer_info['weights'] = layer.weights
             layer_info['bias'] = layer.bias
         if isinstance(layer, Dropout):
             layer_info['keep_prob'] = layer.keep_prob
         layers.append(layer_info)
+    if not os.path.exists(os.path.dirname(filepath)):
+        os.makedirs(os.path.dirname(filepath))
     with open(filepath, 'wb') as f:
         pickle.dump(layers, f)

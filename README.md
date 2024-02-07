@@ -37,7 +37,11 @@ We reconstructed a greyscale image from its low rank approximation using SVD. Th
 [Numeric feature scaling](https://scikit-learn.org/stable/modules/preprocessing.html)
 
 ## Assignment 3:
+### Problem statement:
+In this assignment we had to implement a neural network from scratch and train it on the MNIST alphabet dataset. The model had to be saved for later use.
 ### What I had to learn
 * backpropagation from scratch
 * importance of learning how to tune hyperparameters
-* __call__, __str__ and 
+* __call__, __str__
+* saving a model architecture along with it's weights
+* how to avoid overfitting
