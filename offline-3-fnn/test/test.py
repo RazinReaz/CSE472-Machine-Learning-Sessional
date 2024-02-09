@@ -46,4 +46,4 @@ if __name__ == "__main__":
     print("test macro f1:\t\t", test_macro_f1)
 
     characters = [chr(i+97) for i in range(26)]
-    utils.confusion_heatmap(test_confusion, labels=characters, title="Test Confusion Matrix", model_number=str(model_number), save=False)
+    utils.confusion_heatmap(test_confusion, labels=characters, title="Test Confusion Matrix", model_number=str(model_number), save=True)

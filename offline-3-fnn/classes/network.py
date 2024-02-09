@@ -158,14 +158,17 @@ class FNN():
         print(self.loss)
         print()
     
-    def graphs(self, model_number):
+    def graphs(self, model_number : str, savepath : str):
+        filepath = savepath + '/' + model_number
+        if not os.path.exists(filepath):
+            os.makedirs(filepath)    
         plt.figure(figsize=(8, 6))
         plt.plot(self.training_losses, label="Training Loss")
         plt.plot(self.validation_losses, label="Validation Loss")
         plt.xlabel("Epochs")
         plt.ylabel("Loss")
         plt.legend()
-        plt.savefig('offline-3-fnn/report/images/'+model_number+'/loss.png')
+        plt.savefig(filepath+'/loss.png')
 
         plt.figure(figsize=(8, 6))
         plt.plot(self.training_accuracies, label="Training Accuracy")
@@ -173,7 +176,7 @@ class FNN():
         plt.xlabel("Epochs")
         plt.ylabel("Accuracy")
         plt.legend()
-        plt.savefig('offline-3-fnn/report/images/'+model_number+'/accuracy.png')
+        plt.savefig(filepath+'/accuracy.png')
 
 
 def create_model(filepath):

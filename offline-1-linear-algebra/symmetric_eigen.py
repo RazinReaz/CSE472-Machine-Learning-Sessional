@@ -58,7 +58,7 @@ if __name__ == "__main__":
     A = generate_symmetric_invertible_matrix(n)
 
     # eigen decomposition
-    eigen_values, eigen_vectors = np.linalg.eig(A)
+    eigen_values, eigen_vectors = np.linalg.eigh(A)
     X = eigen_vectors
     L = np.diag(eigen_values)
     X_inv = np.linalg.inv(X)

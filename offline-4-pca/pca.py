@@ -1,8 +1,10 @@
+import os
+import warnings
 import numpy as np
 import matplotlib.pyplot as plt
 from scipy.stats import multivariate_normal
 from tqdm import tqdm
-import os
+from PIL import Image
 
 
 class PCA():
@@ -36,7 +38,6 @@ class PCA():
         if dimensions <= self.n_components:
             return standardized_data
         
-        # covariance_matrix = standardized_data.T.dot(standardized_data)/len(standardized_data)
         U, S, V_T = np.linalg.svd(standardized_data, full_matrices=False)
         self.principal_components = V_T[:self.n_components, :]
 
@@ -71,8 +72,7 @@ class GMM():
         """
         N, D = data.shape
         K = len(self.priors)
-        
-        log_gaussians = np.array([[np.log(multivariate_normal.pdf(data[j], mean=self.means[i], cov=self.covariances[i])) for i in range(K)] for j in range(N)])
+        log_gaussians = np.array([[np.log(np.maximum(multivariate_normal.pdf(data[j], mean=self.means[i], cov=self.covariances[i]), 1e-10)) for i in range(K)] for j in range(N)])
         log_priors = np.log(self.priors).T
         ll = np.sum(np.logaddexp.reduce(log_priors + log_gaussians, axis=1))
         return ll
@@ -93,7 +93,7 @@ class GMM():
         self.responsibilities = np.zeros((K, N))
         
         prev_log_likelihood = None
-        regularization = 1e-6 * np.identity(D)
+        regularization = 1e-5 * np.identity(D)
         
         for iteration in tqdm(range(max_iterations)):
             # E-step
@@ -110,15 +110,15 @@ class GMM():
                 diff = data - self.means[i]                              
                 self.covariances[i] = (sum(r * np.outer(d, d) for r, d in zip(self.responsibilities[i], diff)) + regularization) / Ni[i]
             
-            if iteration % 5 == 0:
+            # if iteration % 2 == 0:
                 self.plot_for_gif(data, "assets/gif-plots/", str(iteration))
             
 
             self.log_likelihood = self.__get_log_likelihood(data)
             if prev_log_likelihood is not None and self.log_likelihood - prev_log_likelihood < tolerance:
-                print(f"\nConverged after {iteration} iterations.")
                 break
             prev_log_likelihood = self.log_likelihood
+        
         return self.means, self.covariances, self.priors, self.log_likelihood, self.responsibilities    
 
     def plot_for_gif(self, data, path, iteration):
@@ -140,6 +140,8 @@ class GMM():
             x, y = np.meshgrid(np.linspace(min_x, max_x, 100), np.linspace(min_y, max_y, 100))
             pos = np.dstack((x, y))
             z = multivariate_normal.pdf(pos, mean=mean, cov=covariance)
+            # keep the values of z between 0.2 and 1
+            z = np.clip(z, 0.001, np.max(z))
             plt.contour(x, y, z)
         plt.savefig(path+iteration+".jpg")
         plt.close()
@@ -167,6 +169,35 @@ def plot(data, save = False, name = "plot.jpg"):
     if save:
         plt.savefig(name)
 
+def create_gif_from_pngs(png_filepath, gif_filepath, duration=100, loop=0):
+    """
+    Create a GIF from a sequence of PNG images.
+
+    Parameters:
+    - png_filepath (str): file path to PNG images.
+    - gif_filepath (str): File path to save the generated GIF.
+    - duration (int): Display duration (in milliseconds) for each frame.
+    - loop (int): Number of loops. 0 means an infinite loop.
+
+    Returns:
+    None
+    """
+    images = []
+    png_filepaths = sorted(os.listdir(png_filepath), key=lambda x: int(x[:-4]))
+
+    # Load each PNG image and append to the list
+    for filepath in png_filepaths:
+        img = Image.open(png_filepath + filepath)
+        images.append(img)
+
+    # Save the images as a GIF
+    images[0].save(
+        gif_filepath,
+        save_all=True,
+        append_images=images[1:],
+        duration=duration,
+        loop=loop
+    )
 
 
 
@@ -189,7 +220,7 @@ if __name__ == "__main__":
                    "3D_data_points.txt", 
                    "6D_data_points.txt"]
     
-    for index in [0, 1, 2, 3, 4]:
+    for index in [1]:
         filename = input_files[index][:-4]
         data = np.loadtxt('data/'+input_files[index], delimiter=',')
 
@@ -199,24 +230,25 @@ if __name__ == "__main__":
         
         plot(reduced_data, save = True, name = f"assets/plots/{filename}-reduced-plot.jpg")
 
-        best_k, best_ll = 0, -np.inf
         lls = []
-        Ks = range(3, 9)
+        Ks = range(3,4)
         for K in Ks:
             print(f"Running GMM for {filename} with K = {K}")
-            gmm = GMM(n_components=K)
-            means, covariances, priors, log_likelihood, responsibilities = gmm.fit(reduced_data)
-            lls.append(log_likelihood)
-            if log_likelihood > best_ll:
-                best_ll = log_likelihood
-                best_k = K
-
-            gmm.plot_2D(reduced_data, "assets/plots/", f"{filename}-gmm-{K}")
-            os.system(f"convert -delay 100 -loop 0 assets/gif-plots/*.jpg assets/gif/{filename}-gmm-{K}.gif")
-            
-        print(f"\nBest K for {filename} is {best_k} with log likelihood {best_ll}")
-        plt.plot(Ks, lls)
-        plt.title(f"{filename} log likelihood")
-        plt.savefig(f"assets/log-likelihoods/{filename}-log-likelihood.jpg")
+            best_ll = -np.inf
+            for i in range(5):
+                gmm = GMM(n_components=K)
+                means, covariances, priors, log_likelihood, responsibilities = gmm.fit(reduced_data)
+                if log_likelihood > best_ll:
+                    best_ll = log_likelihood
+                    gmm.plot_2D(reduced_data, "assets/plots/", f"{filename}-gmm-{K}")
+                    create_gif_from_pngs("assets/gif-plots/", f"assets/gifs/{filename}-gmm-{K}.gif")
+                for file in os.listdir("assets/gif-plots/"):
+                    os.remove(f"assets/gif-plots/{file}")
+                    
+            lls.append(best_ll)
+            print(f"\n{filename} has log likelihood {best_ll} for K = {K}\n")
+        # plt.plot(Ks, lls)
+        # plt.title(f"{filename} log likelihood vs number of components")
+        # plt.savefig(f"assets/log-likelihoods/{filename}-log-likelihood.jpg")
         plt.close()
         
