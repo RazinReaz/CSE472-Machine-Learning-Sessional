@@ -23,12 +23,14 @@ class FNN():
         self.children = []
 
         self.built = False
+        self.trained = False
 
         self.loss = loss
         self.training_losses = []
         self.validation_losses = []
         self.training_accuracies = []
         self.validation_accuracies = []
+        self.validation_macro_f1 = []
     
     def add_layer(self, layer):
         if len(self.children) == 0:
@@ -106,7 +108,8 @@ class FNN():
 
             self.training_accuracies.append(self.accuracy(self.predict(X), y))
             self.validation_accuracies.append(self.accuracy(self.predict(X_val), y_val))
-
+            self.validation_macro_f1.append(self.macro_f1(X_val, y_val))
+        self.trained = True
 
 
     def predict(self, X):
@@ -148,20 +151,22 @@ class FNN():
 
 
 
-    def describe(self):
-        print("learning rate:", self.learning_rate)
-        print("batch size:", self.batch_size)
-        print("epochs:", self.epochs)
-        print()
-        for layer in self.children:
-            print(layer)
-        print(self.loss)
-        print()
+    def describe(self, print_ = False):
+        output_str = (
+            f"learning rate: {self.learning_rate}\n"
+            f"batch size: {self.batch_size}\n"
+            f"epochs: {self.epochs}\n\n"
+            + "\n".join(str(layer) for layer in self.children)
+            + f"\n{self.loss}\n"
+        )
+        if print_:
+            print(output_str)
+        return output_str
     
-    def graphs(self, model_number : str, savepath : str):
-        filepath = savepath + '/' + model_number
+    def epoch_vs_loss(self, filepath : str):
         if not os.path.exists(filepath):
-            os.makedirs(filepath)    
+            os.makedirs(filepath)
+            
         plt.figure(figsize=(8, 6))
         plt.plot(self.training_losses, label="Training Loss")
         plt.plot(self.validation_losses, label="Validation Loss")
@@ -170,6 +175,11 @@ class FNN():
         plt.legend()
         plt.savefig(filepath+'/loss.png')
 
+
+    def epoch_vs_accuracy(self, filepath : str):
+        if not os.path.exists(filepath):
+            os.makedirs(filepath)
+            
         plt.figure(figsize=(8, 6))
         plt.plot(self.training_accuracies, label="Training Accuracy")
         plt.plot(self.validation_accuracies, label="Validation Accuracy")
@@ -177,6 +187,28 @@ class FNN():
         plt.ylabel("Accuracy")
         plt.legend()
         plt.savefig(filepath+'/accuracy.png')
+    
+    def epoch_vs_macro_f1(self, filepath : str):
+        if not os.path.exists(filepath):
+            os.makedirs(filepath)
+            
+        plt.figure(figsize=(8, 6))
+        plt.plot(self.validation_macro_f1, label="Validation Macro F1")
+        plt.xlabel("Epochs")
+        plt.ylabel("Macro F1")
+        plt.legend()
+        plt.savefig(filepath+'/macro_f1.png')
+    
+    def report(self, model_number : str, savepath : str):
+        assert self.trained
+        filepath = savepath + '/' + model_number
+        if not os.path.exists(filepath):
+            os.makedirs(filepath)
+        with open(filepath+'/architecture.txt', 'w') as f:
+            f.write(self.describe())
+        self.epoch_vs_loss(filepath)
+        self.epoch_vs_accuracy(filepath)
+        self.epoch_vs_macro_f1(filepath)
 
 
 def create_model(filepath):

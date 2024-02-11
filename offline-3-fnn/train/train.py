@@ -21,7 +21,7 @@ import classes.Loss as Loss
 
 def load_train_val_dataset(dataset_name: str):
     if dataset_name == "letters":
-        train_validation_dataset = ds.EMNIST(root='./offline-3-fnn/data', split='letters',
+        train_validation_dataset = ds.EMNIST(root='../data', split='letters',
                               train=True,
                               transform=transforms.ToTensor(),
                               download = False)
@@ -43,18 +43,16 @@ def load_train_val_dataset(dataset_name: str):
         raise ValueError("Invalid dataset name")
 
 if __name__ == "__main__":
-    
 
-    # input_size = 784        # 28 * 28
-    # output_size = 26        # 26 letters
-    X_train, y_train, X_validation, y_validation, input_size, output_size = load_train_val_dataset("letters")
     learning_rate = 5e-4
     batch_size = 1024
     epochs = 100
     
-    model_number = 3
-    filepath = 'offline-3-fnn/trained-models/letter-model-'+ str(model_number)+'.pkl'
-    modelpath = 'offline-3-fnn/trained-models/letter-model-'+ str(model_number)+'.pkl'
+    model_number = 1
+    filepath = '../trained-models/letter-model-'+ str(model_number)+'.pkl'
+    modelpath = '../trained-models/letter-model-'+ str(model_number)+'.pkl'
+    
+    X_train, y_train, X_validation, y_validation, input_size, output_size = load_train_val_dataset("letters")
     
     model = network.FNN(input_size, output_size, learning_rate, batch_size, epochs)
     model.sequential(Layer.DenseLayer(input_size, 464, initializer=Initializer.Xavier()),
@@ -67,15 +65,14 @@ if __name__ == "__main__":
                     Layer.Softmax())
 
     print("model built\n")
-    model.describe()
     model.train(X_train, y_train, X_validation, y_validation)
     print("model trained")
     network.export_model(model, filepath)
     print("model weights and biases saved in ", filepath)
-    with open(modelpath, 'rb') as f:
-        model = network.create_model(f)
-    model.graphs(model_number=str(model_number), savepath='offline-3-fnn/report/images')
-    
+    model.report(str(model_number), savepath = '../report')
+    # with open(modelpath, 'rb') as f:
+    #     model = network.create_model(f)
+    # print("model loaded from ", modelpath)
     training_accuracy, training_loss, training_confusion = model.score(X_train, y_train)
     validation_accuracy, validation_loss, validation_confusion = model.score(X_validation, y_validation)
     validation_macro_f1 = model.macro_f1(X_validation, y_validation)
@@ -86,6 +83,8 @@ if __name__ == "__main__":
     print("validation loss:\t", validation_loss)
     print("validation macro f1:\t", validation_macro_f1)
 
-    # characters = [chr(i+97) for i in range(26)]
-    # utils.confusion_heatmap(training_confusion, labels=characters, title="Training Confusion Matrix", model_number=str(model_number))
-    # utils.confusion_heatmap(validation_confusion, labels=characters, title="Validation Confusion Matrix", model_number=str(model_number))
+
+    # The bellow code only works properly for letters dataset
+    characters = [chr(i+97) for i in range(26)]
+    utils.confusion_heatmap(training_confusion, labels=characters, title="Training Confusion Matrix", model_number=str(model_number), savepath = '../report')
+    utils.confusion_heatmap(validation_confusion, labels=characters, title="Validation Confusion Matrix", model_number=str(model_number), savepath = '../report')

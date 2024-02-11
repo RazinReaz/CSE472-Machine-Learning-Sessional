@@ -111,7 +111,7 @@ class GMM():
                 self.covariances[i] = (sum(r * np.outer(d, d) for r, d in zip(self.responsibilities[i], diff)) + regularization) / Ni[i]
             
             # if iteration % 2 == 0:
-                self.plot_for_gif(data, "assets/gif-plots/", str(iteration))
+            self.plot_for_gif(data, "assets/gif-plots/", str(iteration))
             
 
             self.log_likelihood = self.__get_log_likelihood(data)
@@ -143,6 +143,9 @@ class GMM():
             # keep the values of z between 0.2 and 1
             z = np.clip(z, 0.001, np.max(z))
             plt.contour(x, y, z)
+        plt.title(f"GMM with {self.n_components} components")
+        plt.xlabel("Principal Component 1")
+        plt.ylabel("Principal Component 2")
         plt.savefig(path+iteration+".jpg")
         plt.close()
 
@@ -158,6 +161,8 @@ class GMM():
         
         plt.scatter(data[:,0], data[:,1], s=1, color=point_colors/255)
         plt.title(f"{filename} gmm with {self.n_components} components")
+        plt.xlabel("Principal Component 1")
+        plt.ylabel("Principal Component 2")
         plt.savefig(path+filename+".jpg")
         plt.close()
         
@@ -165,6 +170,9 @@ class GMM():
 def plot(data, save = False, name = "plot.jpg"):
     assert data.shape[1] == 2, "The data must be 2D."
     plt.scatter(data[:,0], data[:,1], s=1, color='black')
+    plt.xlabel("Principal Component 1")
+    plt.ylabel("Principal Component 2")
+    plt.title(name[13:-4])
     # plt.show()
     if save:
         plt.savefig(name)
@@ -220,7 +228,7 @@ if __name__ == "__main__":
                    "3D_data_points.txt", 
                    "6D_data_points.txt"]
     
-    for index in [1]:
+    for index in [0, 1, 2, 3, 4]:
         filename = input_files[index][:-4]
         data = np.loadtxt('data/'+input_files[index], delimiter=',')
 
@@ -231,7 +239,7 @@ if __name__ == "__main__":
         plot(reduced_data, save = True, name = f"assets/plots/{filename}-reduced-plot.jpg")
 
         lls = []
-        Ks = range(3,4)
+        Ks = range(3,9)
         for K in Ks:
             print(f"Running GMM for {filename} with K = {K}")
             best_ll = -np.inf
@@ -247,8 +255,10 @@ if __name__ == "__main__":
                     
             lls.append(best_ll)
             print(f"\n{filename} has log likelihood {best_ll} for K = {K}\n")
-        # plt.plot(Ks, lls)
-        # plt.title(f"{filename} log likelihood vs number of components")
-        # plt.savefig(f"assets/log-likelihoods/{filename}-log-likelihood.jpg")
+        plt.plot(Ks, lls)
+        plt.title(f"{filename} log likelihood vs number of components")
+        plt.xlabel("Number of components")
+        plt.ylabel("Log likelihood")
+        plt.savefig(f"assets/log-likelihoods/{filename}-log-likelihood.jpg")
         plt.close()
         

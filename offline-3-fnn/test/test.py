@@ -20,7 +20,7 @@ import classes.Loss as Loss
 
 if __name__ == "__main__":
     
-    independent_test_set = ds.EMNIST(root='./offline-3-fnn/data', split='letters',
+    independent_test_set = ds.EMNIST(root='../data', split='letters',
                               train=False,
                               transform=transforms.ToTensor(),
                               download = False)
@@ -32,12 +32,12 @@ if __name__ == "__main__":
     print("test dataset converted to numpy arrays")
     
     model_number = 3
-    modelpath = 'offline-3-fnn/trained-models/letter-model-'+ str(model_number)+'.pkl'
+    modelpath = '../trained-models/letter-model-'+ str(model_number)+'.pkl'
     
     with open(modelpath, 'rb') as f:
         model = network.create_model(f)
     print("model loaded from", modelpath)
-    model.describe()
+    model.describe(print_= True)
 
     test_accuracy, test_loss, test_confusion = model.score(X_test, y_test)
     test_macro_f1 = model.macro_f1(X_test, y_test)
@@ -46,4 +46,4 @@ if __name__ == "__main__":
     print("test macro f1:\t\t", test_macro_f1)
 
     characters = [chr(i+97) for i in range(26)]
-    utils.confusion_heatmap(test_confusion, labels=characters, title="Test Confusion Matrix", model_number=str(model_number), save=True)
+    utils.confusion_heatmap(test_confusion, labels=characters, title="Test Confusion Matrix", model_number=str(model_number), savepath='../report', save=True)

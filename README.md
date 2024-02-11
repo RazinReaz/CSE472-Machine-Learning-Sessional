@@ -17,15 +17,15 @@ An **invertible matrix** can be generated
 - by applying random elementery row operations on the identity matrix. The determinant will be non-zero.
 
 And a **symmetric matrix** can be generated 
-- by multiplying a matrix with its transpose. if the original matrix is invertible, the symmetric matrix will also be invertible. 
-$$
+- by multiplying a matrix with its transpose. if the original matrix is invertible, the symmetric matrix will also be invertible.\
+$
 Det(A\cdot A^T) = Det(A)\cdot Det(A^T) = Det(A)\cdot Det(A) = (Det(A))^2
-$$
+$
 #### Reconstructing the matrices
-A matrix can be reconstructed from its eigen decomposition by the following formula:
-$$
+A matrix can be reconstructed from its eigen decomposition by the following formula:\
+$
 A = X\cdot \lambda \cdot X^{-1}
-$$
+$
 
 where X is the matrix formed by the eigenvectors of A and $\Lambda$ is the diagonal matrix formed by the eigenvalues of A.
 - To decompose the invertible matrix, the `numpyp.linalg.eig` function was used.
@@ -199,8 +199,42 @@ for downloading the test dataset, the following code was used:
 independent_test_set = ds.EMNIST(root='./data', split='letters',
 train=False,
 transform=transforms.ToTensor(),
-download = False)
+download = True)
 ```
+### Results 
+#### Architecture used
+```
+Dense Layer: (784,464)
+Initializer:Xavier
+Activation: Sigmoid
+Dropout: 0.7
+
+Dense Layer: (464,348)
+Initializer:He
+Activation: ReLU
+Dropout: 0.52
+
+Dense Layer: (348,26)
+Initializer:Xavier
+Activation: Softmax
+
+Loss: Cross Entropy Loss
+```
+
+#### Performance of the model
+| Performance Measure | Value |
+|---------------------|-------|
+| Accuracy            | 95.29%|
+| Validation Accuracy | 92.28%|
+| Training Loss       | 0.135 |
+| Validation Loss     | 0.233 |
+| Validation Macro F1 | 0.922 |
+
+![Accuracy](offline-3-fnn/report/1/Accuracy.png)
+![Loss](offline-3-fnn/report/1/Loss.png)
+![Confusion Matrix](offline-3-fnn/report/1/Training%20Confusion%20Matrix.png)
+![Validation Confusion Matrix](offline-3-fnn/report/1/Validation%20Confusion%20Matrix.png)
+
 ### What I had to learn
 * backpropagation from scratch
 * importance of learning how to tune hyperparameters

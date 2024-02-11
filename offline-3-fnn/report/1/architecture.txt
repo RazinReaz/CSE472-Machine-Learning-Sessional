@@ -1,0 +1,16 @@
+learning rate: 0.0005
+batch size: 1024
+epochs: 100
+
+Dense Layer: (784,464)
+Initializer:Xavier
+Activation: Sigmoid
+Dropout: 0.7
+Dense Layer: (464,348)
+Initializer:He
+Activation: ReLU
+Dropout: 0.52
+Dense Layer: (348,26)
+Initializer:Xavier
+Activation: Softmax
+Loss: Cross Entropy Loss
