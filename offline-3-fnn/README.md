@@ -54,8 +54,8 @@ Loss: Cross Entropy Loss
 | Validation Loss     | 0.233 |
 | Validation Macro F1 | 0.922 |
 
-![Accuracy](report/1/Accuracy.png)
-![Loss](report/1/Loss.png)
+![Accuracy](report/1/accuracy.png)
+![Loss](report/1/loss.png)
 ![Confusion Matrix](report/1/Training%20Confusion%20Matrix.png)
 ![Validation Confusion Matrix](report/1/Validation%20Confusion%20Matrix.png)
 
